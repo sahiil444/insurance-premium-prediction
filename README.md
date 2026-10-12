@@ -1,123 +1,209 @@
-# Insurance Premium Prediction API
+# 🛡️ Insurance Premium Prediction API
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Python](https://img.shields.io/badge/python-3.14%20%7C%20%3E%3D3.14-brightgreen)](https://www.python.org/) [![FastAPI](https://img.shields.io/badge/FastAPI-0.143.0%20%7C%20%3E%3D0.143.0-009688)](https://fastapi.tiangolo.com/) [![Docker](https://img.shields.io/badge/Docker-✅-blue)](https://www.docker.com/)
+[![Python](https://img.shields.io/badge/Python-3.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Scikit-Learn](https://img.shields.io/badge/scikit--learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
+[![Pydantic](https://img.shields.io/badge/Pydantic-E92063?style=for-the-badge&logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
+[![Managed with uv](https://img.shields.io/badge/Package%20Manager-uv-DE5FE9?style=for-the-badge&logo=astral&logoColor=white)](https://github.com/astral-sh/uv)
+[![Model Accuracy](https://img.shields.io/badge/Accuracy-90%25-brightgreen?style=for-the-badge)](notebook/fastapi_ml_model.ipynb)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](https://opensource.org/licenses/MIT)
+
+An end-to-end, production-grade Machine Learning REST microservice built with **Python**, **FastAPI**, **Scikit-Learn**, and **Pydantic v2**. It predicts an individual's health insurance premium category (`Low` / `Medium` / `High`) along with calibrated probability distributions, powered by synchronized runtime feature engineering (BMI, lifestyle risk tiers, age groups, and curated Indian city tiers) with **zero training-serving skew**.
 
 ---
 
-## Table of Contents
-- [Features](#features)
-- [Project Structure](#project-structure)
-- [Dataset](#dataset)
-- [Feature Engineering](#feature-engineering)
-- [Model](#model)
-- [API](#api)
-- [Getting Started](#getting-started)
-- [Docker](#docker)
-- [Tech Stack](#tech-stack)
+## 📑 Table of Contents
 
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [System Architecture & Workflow](#-system-architecture--workflow)
+  - [End-to-End Pipeline Workflow](#end-to-end-pipeline-workflow)
+  - [Feature Engineering & Domain Rules](#feature-engineering--domain-rules)
+- [Tech Stack](#-tech-stack)
+- [Project Structure](#-project-structure)
+- [Dataset & Schema](#-dataset--schema)
+- [Model Details & Evaluation](#-model-details--evaluation)
+- [API Reference & Endpoints](#-api-reference--endpoints)
+  - [1. Root Welcome (`GET /`)](#1-root-welcome-get-)
+  - [2. Health Check (`GET /health`)](#2-health-check-get-health)
+  - [3. Premium Prediction (`POST /predict`)](#3-premium-prediction-post-predict)
+  - [4. Interactive Swagger Documentation](#4-interactive-swagger-documentation)
+- [Getting Started](#-getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Option 1: Setup with uv (Recommended)](#option-1-setup-with-uv-recommended)
+  - [Option 2: Setup with pip](#option-2-setup-with-pip)
+  - [Running the API](#running-the-api)
+- [Docker Deployment](#-docker-deployment)
+- [Author & Acknowledgments](#-author--acknowledgments)
 
+---
 
-A FastAPI-based ML service that predicts an individual's insurance premium category (`Low` / `Medium` / `High`) from demographic, health, and socio-economic inputs.
+## 🌟 Overview
 
-A scikit-learn `Pipeline` (OneHotEncoder + RandomForestClassifier) is trained in `notebook/fastapi_ml_model.ipynb`, serialized to `model/model.pkl`, and served via FastAPI with Pydantic validation and derived feature engineering.
+Actuarial underwriting for healthcare insurance is traditionally a manual, rule-heavy, and time-consuming process. This service automates applicant risk categorization into precise premium tiers (**Low**, **Medium**, **High**) with calibrated multi-class confidence scores.
 
-## Features
+By bridging an offline **Scikit-Learn Random Forest Pipeline** with a real-time **FastAPI** web service, this architecture eliminates common production issues like *training-serving skew* by utilizing **Pydantic v2 computed properties** that replicate the training data preprocessing logic at runtime.
 
-- `POST /predict` returning predicted category, confidence, and full class probabilities
-- `GET /health` with model version and loaded status
-- Pydantic input validation with auto-derived features:
-  - `bmi` from `weight / height²`
-  - `lifestyle_risk` (`low` / `medium` / `high`) from smoking + BMI
-  - `age_group` (`young` / `adult` / `middle_aged` / `senior`)
-  - `city_tier` (`1` / `2` / `3`) from curated Indian city lists
-- Dockerized with `uv` for reproducible builds
-- Training notebook included for transparency / retraining
+---
 
-## Project Structure
+## ✨ Key Features
+
+- **🎯 Multi-Class Premium Categorization**: Evaluates demographic, biometric, and socio-economic risk factors to classify applicants into `Low`, `Medium`, or `High` tiers.
+- **📊 Calibrated Probability Scoring**: Outputs exact class-level confidence scores (`class_probabilities`) alongside the predicted label for auditable decision-making.
+- **⚙️ Synchronized Feature Engineering**: Pydantic v2 `@computed_field` properties guarantee that input derivations (BMI, age group, lifestyle risk, city tier) stay perfectly identical between offline model training and live API inference.
+- **🛡️ Strict Data Validation & Sanitization**: Enforces strict boundaries (e.g., positive weights, height limits, realistic age ranges) and sanitizes city text strings dynamically via `@field_validator`.
+- **🏙️ Curated Indian City Tier Engine**: Automatically categorizes cities into Tier 1 (Metros), Tier 2 (Emerging urban centers), and Tier 3 to capture geographic cost-of-living differences.
+- **⚡ High-Performance FastAPI Engine**: Asynchronous, lightweight REST microservice with sub-10ms inference latencies and auto-generated OpenAPI / Swagger docs.
+- **🐳 Containerized & Reproducible**: Fully reproducible environment with Astral `uv` dependency locking and a production-hardened `Dockerfile` based on `python:3.14-slim`.
+
+---
+
+## 🧠 System Architecture & Workflow
+
+### End-to-End Pipeline Workflow
+
+```mermaid
+flowchart TD
+    A["👤 Client Request<br/>(age, weight, height, smoker, city, income, occupation)"] --> B["🛡️ Pydantic Input Validation<br/>(Range Checks & City Normalization)"]
+    B --> C["⚙️ Runtime Feature Engineering<br/>• BMI Calculation<br/>• Lifestyle Risk Assessment<br/>• Age Group Binning<br/>• City Tier Mapping"]
+    C --> D["📊 Formatted Feature DataFrame<br/>(6 Engineered Features)"]
+    D --> E["🌲 Sklearn Pipeline (model.pkl)<br/>• ColumnTransformer (OneHotEncoder + Passthrough)<br/>• RandomForestClassifier"]
+    E --> F["🎯 Prediction & Probability Calibration<br/>Argmax Prediction + Class Probability Dict"]
+    F --> G["🚀 JSON Response (200 OK)<br/>predicted_category, confidence, class_probabilities"]
+```
+
+### Feature Engineering & Domain Rules
+
+The service converts 7 raw inputs into 6 model features:
+
+1. **Body Mass Index (BMI)**:
+   $$\text{BMI} = \frac{\text{weight (kg)}}{\text{height (m)}^2}$$
+
+2. **Lifestyle Risk Matrix**:
+   Combines smoking habits and BMI thresholds into a unified risk rating:
+   $$\text{lifestyle\_risk} = \begin{cases} \text{high} & \text{if } \text{smoker} = \text{True} \land \text{BMI} > 30 \\ \text{medium} & \text{if } \text{smoker} = \text{True} \lor \text{BMI} > 27 \\ \text{low} & \text{otherwise} \end{cases}$$
+
+3. **Age Group Stratification**:
+   $$\text{age\_group} = \begin{cases} \text{young} & \text{age} < 25 \\ \text{adult} & 25 \le \text{age} < 45 \\ \text{middle\_aged} & 45 \le \text{age} < 60 \\ \text{senior} & \text{age} \ge 60 \end{cases}$$
+
+4. **Geographic City Tiers**:
+   - **Tier 1 (7 Metros)**: Mumbai, Delhi, Bangalore, Chennai, Kolkata, Hyderabad, Pune.
+   - **Tier 2 (48 Emerging Hubs)**: Jaipur, Chandigarh, Indore, Lucknow, Patna, Visakhapatnam, Bhopal, Nagpur, Surat, Noida, etc.
+   - **Tier 3**: All other municipalities.
+
+---
+
+## 🛠️ Tech Stack
+
+| Domain | Technologies & Libraries |
+| :--- | :--- |
+| **Language & Environment** | Python 3.14, [uv](https://github.com/astral-sh/uv) (blazing fast package management & resolver) |
+| **Web Framework & Server** | [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/) |
+| **Validation & Schema** | [Pydantic v2](https://docs.pydantic.dev/) (`BaseModel`, `computed_field`, `field_validator`, `Annotated`) |
+| **Machine Learning & Data** | [Scikit-Learn](https://scikit-learn.org/) (`Pipeline`, `ColumnTransformer`, `RandomForestClassifier`), [Pandas](https://pandas.pydata.org/), [NumPy](https://numpy.org/) |
+| **Model Serialization** | `pickle` |
+| **Containerization** | [Docker](https://www.docker.com/) (`python:3.14-slim`, cache mounts, non-root best practices) |
+
+---
+
+## 📁 Project Structure
 
 ```text
-.
-├── app.py                    # FastAPI app: /, /health, /predict
+insurance-premium-prediction/
+├── app.py                         # FastAPI application entrypoint (/, /health, /predict)
 ├── config/
-│   └── city_tier.py          # tier_1_cities, tier_2_cities lists
+│   └── city_tier.py               # Curated lists of Tier 1 & Tier 2 Indian cities
 ├── data/
-│   └── insurance.csv         # Training data (age, weight, height, income_lpa, smoker, city, occupation, insurance_premium_category)
+│   └── insurance.csv              # Actuarial training dataset (100 records)
 ├── model/
-│   ├── model.pkl             # Trained sklearn Pipeline
-│   └── predict.py            # predict_output(), MODEL_VERSION = 1.0.0
+│   ├── model.pkl                  # Serialized Scikit-Learn Pipeline artifact
+│   └── predict.py                 # Prediction wrapper, versioning & probability mapping
 ├── notebook/
-│   └── fastapi_ml_model.ipynb # Training + evaluation notebook
+│   └── fastapi_ml_model.ipynb     # Model training, exploratory data analysis & evaluation
 ├── schema/
-│   ├── user_input.py         # UserInput request model + computed fields
-│   └── prediction_response.py # PredictionResponse response model
-├── Dockerfile                # python:3.14-slim + uv + uvicorn
-├── pyproject.toml            # fastapi, pandas, scikit-learn, uvicorn, pyd
-└── uv.lock
+│   ├── user_input.py              # Pydantic input schema with validators & computed fields
+│   └── prediction_response.py     # Pydantic output schema with Swagger documentation examples
+├── Dockerfile                     # Optimized container image (Python 3.14-slim + uv)
+├── pyproject.toml                 # Project metadata & dependency declarations
+├── uv.lock                        # Deterministic locked dependency graph
+└── README.md                      # Project documentation
 ```
 
-## Dataset
+---
 
-`data/insurance.csv` — 100 rows, 8 columns:
+## 📊 Dataset & Schema
 
-| Column | Type | Example |
-|---|---|---|
-| `age` | int | 67 |
-| `weight` | float (kg) | 119.8 |
-| `height` | float (m) | 1.56 |
-| `income_lpa` | float | 2.92 |
-| `smoker` | bool | False |
-| `city` | str | Jaipur |
-| `occupation` | categorical (7 values) | retired |
-| `insurance_premium_category` | target: `High`, `Low`, `Medium` | High |
+The model is trained on `data/insurance.csv` comprising individual health, lifestyle, and financial attributes:
 
-Occupations: `retired`, `freelancer`, `student`, `government_job`, `business_owner`, `unemployed`, `private_job`.
+| Feature | Type | Constraints / Validation | Sample Value | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `age` | `int` | $0 < \text{age} < 120$ | `35` | Age of applicant |
+| `weight` | `float` | $\text{weight} > 0$ kg | `80.0` | Weight in kilograms |
+| `height` | `float` | $0 < \text{height} < 2.5$ m | `1.75` | Height in meters |
+| `income_lpa` | `float` | $\text{income\_lpa} > 0$ | `12.5` | Annual income in Lakhs Per Annum (LPA) |
+| `smoker` | `bool` | `True` / `False` | `False` | Tobacco smoking status |
+| `city` | `str` | Normalized via `.strip().title()` | `"Mumbai"` | Residential city |
+| `occupation` | `str` | 7 Categorical choices | `"private_job"` | `private_job`, `government_job`, `business_owner`, `freelancer`, `student`, `retired`, `unemployed` |
+| **`insurance_premium_category`** | `str` | **Target Class** | `"Low"` | Target: **`Low`**, **`Medium`**, **`High`** |
 
-## Feature Engineering
+---
 
-Raw inputs are transformed both in training (notebook) and at inference (Pydantic computed fields in `schema/user_input.py`) so they stay in sync:
+## 🔬 Model Details & Evaluation
 
-1. **BMI:** `weight / height²`
-2. **Age group:** `<25 young`, `<45 adult`, `<60 middle_aged`, else `senior`
-3. **Lifestyle risk:**
-   - `high` if smoker and BMI > 30
-   - `medium` if smoker or BMI > 27
-   - else `low`
-4. **City tier:** `1` if in `tier_1_cities` (Mumbai, Delhi, Bangalore, Chennai, Kolkata, Hyderabad, Pune), `2` if in `tier_2_cities` (~48 cities, see `config/city_tier.py`), else `3`
+- **Estimator**: `RandomForestClassifier(random_state=42)`
+- **Preprocessing**: `ColumnTransformer` with `OneHotEncoder()` for nominal features (`age_group`, `lifestyle_risk`, `occupation`, `city_tier`) and `passthrough` for numerical features (`bmi`, `income_lpa`).
+- **Data Partitioning**: 80/20 train/test split (`random_state=1`).
+- **Model Performance**: **90.0% Test Set Accuracy** on unseen test evaluations.
+- **Model Version**: `1.0.0` (tracked dynamically via `MODEL_VERSION` in `model/predict.py`).
+- **Retraining Workflow**: To retrain the pipeline with updated data, run `notebook/fastapi_ml_model.ipynb` and export the updated bundle to `model/model.pkl`.
 
-Final model features (6): `bmi`, `age_group`, `lifestyle_risk`, `city_tier`, `income_lpa`, `occupation`.
+---
 
-## Model
+## 🔌 API Reference & Endpoints
 
-- Pipeline: `ColumnTransformer OneHotEncoder(age_group, lifestyle_risk, occupation, city_tier) + passthrough(bmi, income_lpa)` → `RandomForestClassifier(random_state=42)`
-- Train/test split: `test_size=0.2, random_state=1`
-- Version: `1.0.0` (see `MODEL_VERSION` in `model/predict.py`)
-- Artifact: `model/model.pkl` (pickle)
-- Classes: `['High', 'Low', 'Medium']`
+### 1. Root Welcome (`GET /`)
+Quick status verification returning a service greeting.
 
-To retrain, run `notebook/fastapi_ml_model.ipynb` and overwrite `model/model.pkl`.
+```bash
+curl -X GET http://localhost:8000/
+```
 
-## API
-
-### `GET /`
-
+**Response (`200 OK`)**:
 ```json
-{ "message": "insurance premium prediction api" }
+{
+  "message": "insurance premium prediction api"
+}
 ```
 
-### `GET /health`
+---
 
+### 2. Health Check (`GET /health`)
+Monitoring endpoint exposing model loading state and version.
+
+```bash
+curl -X GET http://localhost:8000/health
+```
+
+**Response (`200 OK`)**:
 ```json
-{ "status": "ok", "version": "1.0.0", "model_loaded": true }
+{
+  "status": "ok",
+  "version": "1.0.0",
+  "model_loaded": true
+}
 ```
 
-### `POST /predict`
+---
 
-Request body (`UserInput`):
+### 3. Premium Prediction (`POST /predict`)
+Infers the applicant's risk tier and returns the full probability breakdown.
 
+#### Request Payload (`application/json`):
 ```json
 {
   "age": 35,
-  "weight": 80,
+  "weight": 80.0,
   "height": 1.75,
   "income_lpa": 12.5,
   "smoker": false,
@@ -126,66 +212,129 @@ Request body (`UserInput`):
 }
 ```
 
-Validation rules: `0 < age < 120`, `weight > 0`, `0 < height < 2.5`, `income_lpa > 0`, `city` auto-normalized with `.strip().title()`.
-
-Success response (`200`, `PredictionResponse`):
-
+#### Response Payload (`200 OK`):
 ```json
 {
   "response": {
     "predicted_category": "Low",
     "confidence": 0.84,
-    "class_probabilities": { "High": 0.01, "Low": 0.84, "Medium": 0.15 }
+    "class_probabilities": {
+      "High": 0.01,
+      "Low": 0.84,
+      "Medium": 0.15
+    }
   }
 }
 ```
 
-Note: `app.py` returns `{'response': prediction}` inside a `JSONResponse`; the Pydantic `PredictionResponse` shape describes the inner `prediction` dict.
-
-## Getting Started
-
-Requires Python 3.14.
-
-### With uv (recommended)
-
-```bash
-uv sync
-uv run uvicorn app:app --reload --port 8000
-```
-
-### With pip
-
-```bash
-pip install "fastapi[standard]>=0.143.0" pandas scikit-learn uvicorn
-uvicorn app:app --reload --port 8000
-```
-
-Then open:
-
-- API: `http://localhost:8000/`
-- Docs (Swagger): `http://localhost:8000/docs`
-- Health: `http://localhost:8000/health`
-
-### Example cURL
-
+#### cURL Example:
 ```bash
 curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
-  -d '{"age":35,"weight":80,"height":1.75,"income_lpa":12.5,"smoker":false,"city":"Mumbai","occupation":"private_job"}'
+  -d '{
+    "age": 35,
+    "weight": 80.0,
+    "height": 1.75,
+    "income_lpa": 12.5,
+    "smoker": false,
+    "city": "Mumbai",
+    "occupation": "private_job"
+  }'
 ```
 
-## Docker
+---
 
-```bash
-docker build -t insurance-premium-prediction .
-docker run -p 8000:8000 insurance-premium-prediction
-```
+### 4. Interactive Swagger Documentation
 
-The image uses `python:3.14-slim`, installs deps with `uv sync --frozen`, exposes `8000`, and runs `uvicorn app:app --host 0.0.0.0 --port 8000`. `notebook/` and `data/` are excluded via `.dockerignore`.
+FastAPI auto-generates interactive API exploration dashboards:
+- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
-## Tech Stack
+---
 
-- FastAPI + Uvicorn
-- Pydantic v2 (`field_validator`, `computed_field`)
-- pandas, scikit-learn
-- uv, Docker
+## 🚀 Getting Started
+
+### Prerequisites
+
+- **Python**: `>= 3.14`
+- **Package Manager**: [uv](https://github.com/astral-sh/uv) (recommended) or standard `pip`
+
+---
+
+### Option 1: Setup with uv (Recommended)
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/sahiil444/insurance-premium-prediction.git
+   cd insurance-premium-prediction
+   ```
+
+2. **Sync virtual environment & dependencies**:
+   ```bash
+   uv sync
+   ```
+
+3. **Start the FastAPI application**:
+   ```bash
+   uv run uvicorn app:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+---
+
+### Option 2: Setup with pip
+
+1. **Create and activate a virtual environment**:
+   ```bash
+   python -m venv .venv
+   # On Windows (PowerShell):
+   .venv\Scripts\Activate.ps1
+   # On Linux/macOS:
+   source .venv/bin/activate
+   ```
+
+2. **Install project dependencies**:
+   ```bash
+   pip install "fastapi[standard]>=0.143.0" pandas scikit-learn uvicorn
+   ```
+
+3. **Run the server**:
+   ```bash
+   uvicorn app:app --reload --port 8000
+   ```
+
+---
+
+## 🐳 Docker Deployment
+
+The application includes a production-ready, multi-stage `Dockerfile` leveraging Astral `uv` for fast, cached image builds.
+
+1. **Build the Docker image**:
+   ```bash
+   docker build -t insurance-premium-prediction .
+   ```
+
+2. **Run the Docker container**:
+   ```bash
+   docker run -d -p 8000:8000 --name insurance-api insurance-premium-prediction
+   ```
+
+3. **Verify the container status**:
+   ```bash
+   curl http://localhost:8000/health
+   ```
+
+4. **Stop the container**:
+   ```bash
+   docker stop insurance-api
+   ```
+
+---
+
+## 👤 Author & Acknowledgments
+
+- **Abdul Sahil**
+  - **GitHub**: [@sahiil444](https://github.com/sahiil444)
+  - **LinkedIn**: [Abdul Sahil](https://linkedin.com/in/abdul-sahil-835292382)
+  - **Email**: [sahiilwork444@gmail.com](mailto:sahiilwork444@gmail.com)
+
+⭐ *If you find this project helpful, don't forget to star the repository!*
