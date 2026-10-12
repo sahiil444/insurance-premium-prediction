@@ -1,5 +1,22 @@
 # Insurance Premium Prediction API
 
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Python](https://img.shields.io/badge/python-3.14%20%7C%20%3E%3D3.14-brightgreen)](https://www.python.org/) [![FastAPI](https://img.shields.io/badge/FastAPI-0.143.0%20%7C%20%3E%3D0.143.0-009688)](https://fastapi.tiangolo.com/) [![Docker](https://img.shields.io/badge/Docker-✅-blue)](https://www.docker.com/)
+
+---
+
+## Table of Contents
+- [Features](#features)
+- [Project Structure](#project-structure)
+- [Dataset](#dataset)
+- [Feature Engineering](#feature-engineering)
+- [Model](#model)
+- [API](#api)
+- [Getting Started](#getting-started)
+- [Docker](#docker)
+- [Tech Stack](#tech-stack)
+
+
+
 A FastAPI-based ML service that predicts an individual's insurance premium category (`Low` / `Medium` / `High`) from demographic, health, and socio-economic inputs.
 
 A scikit-learn `Pipeline` (OneHotEncoder + RandomForestClassifier) is trained in `notebook/fastapi_ml_model.ipynb`, serialized to `model/model.pkl`, and served via FastAPI with Pydantic validation and derived feature engineering.
